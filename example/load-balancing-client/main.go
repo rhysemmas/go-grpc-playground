@@ -28,7 +28,7 @@ func makeRPCs(conn *grpc.ClientConn, n int) {
 	// ping the server
 	for {
 		response, err := c.SayHello(context.Background(), &pb.PingMessage{Greeting: "foo"})
-		log.Printf("Response from server: %s", response.Greeting)
+		log.Printf("Response from '%s' server: %s", response.Server, response.Greeting)
 		if err != nil {
 			log.Fatalf("Error when calling SayHello: %s", err)
 		}

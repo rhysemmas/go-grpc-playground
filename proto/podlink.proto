@@ -4,6 +4,7 @@ package proto;
 
 message PingMessage {
   string greeting = 1;
+  string server = 2;
 }
 
 service Ping {

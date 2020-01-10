@@ -24,13 +24,13 @@ func createServer(addr int) {
 	}
 
 	// create a server instance
-	s := pb.Server{}
+	s := &pb.Server{Addr: addr}
 
 	// create a gRPC server object
 	grpcServer := grpc.NewServer()
 
 	// attach the Ping service to the server
-	pb.RegisterPingServer(grpcServer, &s)
+	pb.RegisterPingServer(grpcServer, s)
 
 	// start the server
 	log.Printf("starting to serve on %d", addr)
