@@ -1,9 +1,6 @@
-# Golang::gRPC 
+# cloud-podlink
 
-Repo to play around with some gRPC concepts and familiarise with protoc
+inter-pod connectivity tester
 
-Some links:
-
-https://github.com/grpc/grpc-go/tree/master/examples/features/load_balancing  
-https://bitbucket.org/blog/writing-a-microservice-in-golang-which-communicates-over-grpc  
-https://kubernetes.io/blog/2018/11/07/grpc-load-balancing-on-kubernetes-without-tears/  
+creates pods with a server and client container spread across cluster(s) that load balance to 2<= pods and test for reachability
+could we use linkerd?

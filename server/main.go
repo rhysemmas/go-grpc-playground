@@ -10,6 +10,22 @@ import (
 	pb "../proto"
 )
 
+func getLocalIP() string {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return ""
+	}
+	for _, address := range addrs {
+		// check the address type and if it is not a loopback the display it
+		if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipnet.IP.To4() != nil {
+				return ipnet.IP.String()
+			}
+		}
+	}
+	return ""
+}
+
 // main start a gRPC server and waits for connection
 func main() {
 	// create a listener on TCP port 7777
@@ -19,13 +35,14 @@ func main() {
 	}
 
 	// create a server instance
-	s := pb.Server{}
+	addr := getLocalIP()
+	s := &pb.Server{Addr: addr}
 
 	// create a gRPC server object
 	grpcServer := grpc.NewServer()
 
 	// attach the Ping service to the server
-	pb.RegisterPingServer(grpcServer, &s)
+	pb.RegisterPingServer(grpcServer, s)
 
 	// start the server
 	log.Printf("starting to serve...")
