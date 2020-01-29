@@ -8,7 +8,7 @@ import (
 
 	"google.golang.org/grpc"
 
-	pb "../../proto"
+	pb "github.com/rhysemmas/go-grpc-playground/proto"
 )
 
 var (

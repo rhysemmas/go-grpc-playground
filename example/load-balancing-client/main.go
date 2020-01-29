@@ -14,8 +14,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/resolver"
 
-	pb "../../proto"
-	myrrbalancer "./balancer"
+	myrrbalancer "github.com/rhysemmas/go-grpc-playground/example/load-balancing-client/balancer"
+	pb "github.com/rhysemmas/go-grpc-playground/proto"
 )
 
 const (
