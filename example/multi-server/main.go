@@ -13,7 +13,7 @@ import (
 
 var (
 	//addrs = []string{"50051", "50052"}
-	addrs = []string{"50051"}
+	addrs = []string{"50052"}
 )
 
 // main start a gRPC server and waits for connection

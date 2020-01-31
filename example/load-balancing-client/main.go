@@ -4,13 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"net/http"
 	"time"
 
 	"github.com/grpc-ecosystem/go-grpc-prometheus"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/resolver"
 
@@ -24,23 +20,8 @@ const (
 )
 
 var (
-	opsProcessed = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "podlink_error_count_total",
-		Help: "The total number of processed failure events",
-	})
-
-	addrs = []string{"localhost:50051", "localhost:50052"}
+	addrs = []string{"192.168.112.176:50051", "192.168.112.176:50052"}
 )
-
-func promHandler() {
-	go func() {
-		http.Handle("/metrics", promhttp.Handler())
-		servErr := http.ListenAndServe(":50050", nil)
-		if servErr != nil {
-			log.Fatalf("metrics server failure")
-		}
-	}()
-}
 
 func makeRPCs(conn *grpc.ClientConn, n int) {
 	// create new client with connection
@@ -55,17 +36,12 @@ func makeRPCs(conn *grpc.ClientConn, n int) {
 			log.Printf("Error when calling SayHello: %s", err)
 		}
 		time.Sleep(1 * time.Second)
-		//tv := balancer.Pick("/proto/SayHello", context.Context)
-		//log.Printf("test3: %v", tv)
-		// please send help
-		//log.Printf("test4: %v", resolver.Resolver.state)
-		//log.Printf("help: %v", balancer.SubConnState{ConnectivityState: connectivity.TransientFailure})
 	}
 }
 
 func main() {
 	// start prom server
-	promHandler()
+	myrrbalancer.PromHandler()
 
 	// Make a ClientConn with round_robin policy.
 	roundrobinConn, err := grpc.Dial(
@@ -84,7 +60,7 @@ func main() {
 	defer roundrobinConn.Close()
 
 	fmt.Println("--- calling podlink.Ping/SayHello with round_robin ---")
-	makeRPCs(roundrobinConn, 10)
+	makeRPCs(roundrobinConn, 1000)
 }
 
 // The below will need replacing with some Kube/DNS resolving stuff
@@ -102,7 +78,6 @@ func (*exampleResolverBuilder) Build(target resolver.Target, cc resolver.ClientC
 		},
 	}
 	r.start()
-	//log.Printf("test5: %v", r.state)
 	return r, nil
 }
 func (*exampleResolverBuilder) Scheme() string { return exampleScheme }
@@ -127,6 +102,5 @@ func (*exampleResolver) ResolveNow(o resolver.ResolveNowOptions) {}
 func (*exampleResolver) Close()                                  {}
 
 func init() {
-	// func init must have no arguments and return no values
 	resolver.Register(&exampleResolverBuilder{})
 }
