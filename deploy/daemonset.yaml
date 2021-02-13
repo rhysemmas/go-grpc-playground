@@ -1,0 +1,24 @@
+---
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  namespace: default
+  name: podlink
+spec:
+  template:
+    metadata:
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "50050"
+      labels:
+        app: podlink
+    spec:
+      nodeSelector:
+        kubernetes.io/role: node
+      containers:
+        - name: client
+          image: rhysemmas/podlink:master # USE A TAGGED RELEASE IN PRODUCTION
+          imagePullPolicy: Always
+        - name: server
+          image: rhysemmas/podlink:master
+          imagePullPolicy: Always

@@ -1,81 +1,131 @@
-package myrrbalancer
+package balancer
 
 import (
+	"fmt"
 	"log"
-	"math/rand"
-	"sync"
+	"net/http"
+	"regexp"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc/balancer"
-	"google.golang.org/grpc/balancer/base"
-	"google.golang.org/grpc/grpclog"
+	"google.golang.org/grpc/connectivity"
+	"google.golang.org/grpc/resolver"
 )
 
 // Name is the name of round_robin balancer.
 const Name = "my_round_robin"
 
+var (
+	// kube api to check for node IP/host?
+
+	okStatus = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "podlink_connection_status",
+			Help: "Current temperature of the CPU.",
+		},
+		[]string{"pod_ip"},
+	)
+
+	conFailures = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "podlink_connection_errors_total",
+			Help: "Number of connection errors over time to pods.",
+		},
+		[]string{"pod_ip"},
+	)
+)
+
+// ShimBalancer fuck off
+type ShimBalancer struct {
+	bal balancer.Balancer
+	ip  string
+}
+
+// HandleSubConnStateChange fuck off
+func (sb *ShimBalancer) HandleSubConnStateChange(sc balancer.SubConn, state connectivity.State) {
+	sb.bal.HandleSubConnStateChange(sc, state)
+}
+
+// HandleResolvedAddrs fuck off
+func (sb *ShimBalancer) HandleResolvedAddrs(addresses []resolver.Address, err error) {
+	sb.bal.HandleResolvedAddrs(addresses, err)
+}
+
+// Close fuck off
+func (sb *ShimBalancer) Close() {
+	sb.bal.Close()
+}
+
+// UpdateClientConnState fuck off
+func (sb *ShimBalancer) UpdateClientConnState(state balancer.ClientConnState) error {
+	v2bal := sb.bal.(balancer.V2Balancer)
+	return v2bal.UpdateClientConnState(state)
+}
+
+// ResolverError fuck off
+func (sb *ShimBalancer) ResolverError(err error) {
+	v2bal := sb.bal.(balancer.V2Balancer)
+	v2bal.ResolverError(err)
+}
+
+// UpdateSubConnState fuck off
+func (sb *ShimBalancer) UpdateSubConnState(sc balancer.SubConn, state balancer.SubConnState) {
+	v2bal := sb.bal.(balancer.V2Balancer)
+
+	if state.ConnectivityState == connectivity.TransientFailure {
+		fmt.Println("woooooooooo", sc)
+		r, _ := regexp.Compile("([0-9]+)(.)([0-9]+)(.)([0-9]+)(.)([0-9]+)(:?)([0-9]+)?")
+		sb.ip = r.FindString(state.ConnectionError.Error())
+		conFailures.With(prometheus.Labels{"pod_ip": sb.ip}).Inc()
+		okStatus.With(prometheus.Labels{"pod_ip": sb.ip}).Set(1)
+	}
+
+	if state.ConnectivityState == connectivity.Ready {
+		fmt.Println("fak")
+		okStatus.With(prometheus.Labels{"pod_ip": sb.ip}).Set(0)
+	}
+
+	v2bal.UpdateSubConnState(sc, state)
+}
+
+// ShimBuilder fuck off
+type ShimBuilder struct {
+	builder balancer.Builder
+}
+
+// Build fuck off
+func (b *ShimBuilder) Build(cc balancer.ClientConn, opts balancer.BuildOptions) balancer.Balancer {
+	bal := b.builder.Build(cc, opts)
+
+	return &ShimBalancer{bal: bal}
+}
+
+// Name fuck off
+func (b *ShimBuilder) Name() string {
+	return Name
+}
+
 // newBuilder creates a new roundrobin balancer builder.
 func newBuilder() balancer.Builder {
-	return base.NewBalancerBuilderV2(Name, &rrPickerBuilder{}, base.Config{HealthCheck: true})
+	return &ShimBuilder{balancer.Get("round_robin")}
 }
 
+// PromHandler exported to be called by client making RPCs
+func PromHandler() {
+	go func() {
+		http.Handle("/metrics", promhttp.Handler())
+		servErr := http.ListenAndServe(":50050", nil)
+		if servErr != nil {
+			log.Fatalf("metrics server failure")
+		}
+	}()
+}
+
+// fuck off
 func init() {
+	// Metrics have to be registered to be exposed:
+	prometheus.MustRegister(conFailures)
+	prometheus.MustRegister(okStatus)
 	balancer.Register(newBuilder())
 }
-
-type rrPickerBuilder struct{}
-
-func (*rrPickerBuilder) Build(info base.PickerBuildInfo) balancer.V2Picker {
-	grpclog.Infof("roundrobinPicker: newPicker called with info: %v", info)
-	if len(info.ReadySCs) == 0 {
-		return base.NewErrPickerV2(balancer.ErrNoSubConnAvailable)
-	}
-	var scs []balancer.SubConn
-	for sc := range info.ReadySCs {
-		scs = append(scs, sc)
-		log.Printf("ReadySCs: %v", scs)
-	}
-	log.Printf("SCs info: %v", info)
-	return &rrPicker{
-		SubConns: scs,
-		// Start at a random index, as the same RR balancer rebuilds a new
-		// picker when SubConn states change, and we don't want to apply excess
-		// load to the first server in the list.
-		next: rand.Intn(len(scs)),
-	}
-}
-
-type rrPicker struct {
-	// subConns is the snapshot of the roundrobin balancer when this picker was
-	// created. The slice is immutable. Each Get() will do a round robin
-	// selection from it and return the selected SubConn.
-
-	//subConns []balancer.SubConn
-	SubConns []balancer.SubConn
-
-	mu   sync.Mutex
-	next int
-}
-
-func (p *rrPicker) Pick(balancer.PickInfo) (balancer.PickResult, error) {
-	p.mu.Lock()
-	sc := p.SubConns[p.next]
-	p.next = (p.next + 1) % len(p.SubConns)
-	p.mu.Unlock()
-	return balancer.PickResult{SubConn: sc}, nil
-}
-
-// // ScStates exported
-// type scStates struct {
-// 	sc    []balancer.SubConn
-// 	state balancer.SubConnState
-// }
-//
-// // State func exported
-// func (sc *scStates) State() {
-// 	scs := sc.sc
-// 	s := sc.state
-//
-// 	for i := range scs {
-// 		log.Printf("SC state: %v, %v", i, s)
-// 	}
-// }

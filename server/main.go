@@ -29,7 +29,7 @@ func getLocalIP() string {
 // main start a gRPC server and waits for connection
 func main() {
 	// create a listener on TCP port 7777
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", 7777))
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", 443))
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
